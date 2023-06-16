@@ -50,7 +50,7 @@ async def send_email(email: EmailSchema, instance: models.User):
 
     message = MessageSchema(
         subject="EasyShop Account Verification Email",
-        recipients=email,
+        recipients=email.email,
         body=html,
         subtype="html"
     )

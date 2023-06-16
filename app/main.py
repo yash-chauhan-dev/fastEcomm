@@ -30,7 +30,10 @@ async def create_business(
             owner=instance
         )
         await models.business_pydantic.from_tortoise_orm(business_obj)
-        await emails.send_email(emails.EmailSchema([instance.email]), instance)
+        await emails.send_email(
+            emails.EmailSchema(email=[instance.email]),
+            instance
+        )
 
 
 @app.post("/registration")
