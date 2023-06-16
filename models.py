@@ -41,7 +41,8 @@ class Product(Model):
 user_pydantic = pydantic_model_creator(
     User, name="User", exclude=("is_verified", ))
 user_pydanticIn = pydantic_model_creator(
-    User, name="UserIn", exclude_readonly=True)
+    User, name="UserIn", exclude_readonly=True,
+    exclude=("is_verified", "join_date"))
 user_pydanticOut = pydantic_model_creator(
     User, name="UserOut", exclude_readonly=("password", ))
 
