@@ -1,13 +1,16 @@
+import secrets
 from typing import List, Optional, Type
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import (Depends, FastAPI, File, HTTPException, Request,
+                     UploadFile, status)
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from PIL import Image
 from tortoise import BaseDBAsyncClient
 from tortoise.contrib.fastapi import register_tortoise
-# signals
 from tortoise.signals import post_save
 
 import app.authentication as authentication
@@ -20,6 +23,8 @@ configuration = config.get_mail_config()
 app = FastAPI()
 
 oauth2_schema = OAuth2PasswordBearer(tokenUrl='token')
+
+app.mount("/app/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.post('/token')
@@ -112,6 +117,105 @@ async def email_verification(request: Request, token: str):
         detail="Invalid token or expired token",
         headers={"WWW-Authenticate": "Bearer"}
     )
+
+
+@app.post("/upload/profile")
+async def create_upload_file(
+        file: UploadFile = File(...),
+        user: models.user_pydantic = Depends(get_current_user)):
+    FILEPATH = "app/static/images/"
+    filename = file.filename
+    # test.png -> ["test", "png"]
+    extension = filename.split(".")[1]
+
+    if extension not in ["png", "jpg"]:
+        return {"status": "error", "detail": "File extension not allowed"}
+
+    token_name = secrets.token_hex(10) + "." + extension
+    generate_name = FILEPATH + token_name
+    file_content = await file.read()
+
+    with open(generate_name, "wb") as file_pointer:
+        file_pointer.write(file_content)
+
+    # PILLOW
+    img = Image.open(generate_name)
+    img = img.resize(size=(200, 200))
+    img.save(generate_name)
+
+    file.close()
+
+    business = await models.Business.get(owner=user)
+    owner = await business.owner
+
+    if owner == user:
+        business.logo = token_name
+        await business.save()
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated to perform this action",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    file_url = "localhost:8000/" + generate_name
+
+    return {
+        "status": "ok",
+        "filename": file_url
+    }
+
+
+@app.post("/upload/product/{id}")
+async def create_upload_product_file(
+        id: int,
+        file: UploadFile = File(...),
+        user: models.user_pydantic = Depends(get_current_user)):
+    FILEPATH = "app/static/images/"
+    filename = file.filename
+    # test.png -> ["test", "png"]
+    extension = filename.split(".")[1]
+
+    if extension not in ["png", "jpg"]:
+        return {"status": "error", "detail": "File extension not allowed"}
+
+    token_name = secrets.token_hex(10) + "." + extension
+    generate_name = FILEPATH + token_name
+    file_content = await file.read()
+
+    with open(generate_name, "wb") as file_pointer:
+        file_pointer.write(file_content)
+
+    # PILLOW
+    img = Image.open(generate_name)
+    img = img.resize(size=(200, 200))
+    img.save(generate_name)
+
+    file.close()
+
+    product = await models.Product.get(id=id)
+    business = await product.business
+    owner = await business.owner
+
+    if owner == user:
+        product.product_image = token_name
+        await product.save()
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated to perform this action",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    file_url = "localhost:8000/" + generate_name
+
+    return {
+        "status": "ok",
+        "filename": file_url
+    }
+
 
 register_tortoise(
     app,
